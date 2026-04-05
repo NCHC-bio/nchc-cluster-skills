@@ -10,16 +10,23 @@ Claude Code skills plugin for working with TWCC / NCHC (National Center for High
 
 ## Installation
 
-### From GitHub
+### Via marketplace
 
 ```bash
-/install-plugin https://github.com/whats2000/NCHC-cluster-skills.git
+/plugin marketplace add whats2000/nchc-marketplace
+/plugin install nchc-cluster-skills@nchc-marketplace
 ```
 
-### From local directory
+### Local development / testing
 
 ```bash
-/install-plugin /path/to/NCHC-cluster-skills
+claude --plugin-dir /path/to/NCHC-cluster-skills
+```
+
+### Reload after changes
+
+```bash
+/reload-plugins
 ```
 
 ## Skills
