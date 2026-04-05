@@ -1,0 +1,20 @@
+{
+  "name": "nchc-cluster-skills",
+  "description": "Claude Code skills for TWCC / NCHC HPC cluster usage: SLURM job submission, GPU allocation, pricing, and post-job review",
+  "version": "1.0.0",
+  "author": {
+    "name": "whats2000"
+  },
+  "homepage": "https://github.com/whats2000/NCHC-cluster-skills",
+  "repository": "https://github.com/whats2000/NCHC-cluster-skills",
+  "license": "MIT",
+  "keywords": [
+    "nchc",
+    "twcc",
+    "hpc",
+    "slurm",
+    "gpu",
+    "cluster",
+    "skills"
+  ]
+}

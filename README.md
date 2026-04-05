@@ -13,13 +13,13 @@ Claude Code skills plugin for working with TWCC / NCHC (National Center for High
 ### From GitHub
 
 ```bash
-claude plugins add whats2000/NCHC-cluster-skills
+/install-plugin https://github.com/whats2000/NCHC-cluster-skills.git
 ```
 
 ### From local directory
 
 ```bash
-claude plugins add /path/to/NCHC-cluster-skills
+/install-plugin /path/to/NCHC-cluster-skills
 ```
 
 ## Skills
