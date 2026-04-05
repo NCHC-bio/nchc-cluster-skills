@@ -104,17 +104,21 @@ squeue -u $USER -o "%.18i %.9P %.30j %.8u %.8T %.10M %.10l %.6D %R"
 ## Step 2: Fetch Current Pricing
 
 **Do not quote hardcoded prices.** Pricing changes between cluster generations.
-Always fetch from the official TWCC pricing page before quoting any cost figures:
+Fetch from the official NCHC pricing page before quoting any cost figures:
 
-- **Primary source:** https://www.twcc.ai/doc?page=price
-- **Backup / NCHC portal:** https://iservice.nchc.org.tw/nchc_service/nchc_service_fee.php
+- **Primary source:** https://iservice.nchc.org.tw/nchc_service/nchc_service_qa.php?target=54
+- **Backup (SPA — may not render):** https://www.twcc.ai/doc?page=price
+
+If neither URL is fetchable, ask the user to confirm the current GPU-hour rate for their GPU type
+and project category before quoting costs.
 
 Extract the current GPU-hour rate for the relevant GPU type (H100, H200, GB200, etc.) and the user's
 project category (NSC, Academic/Gov, Enterprise). Note the effective date if shown on the page.
 
 Billing formula (consistent across generations):
 ```
-cost = (job_duration_seconds / 3600) * gpus_requested * rate_per_gpu_hour
+GPU-hours = execution_hours * gpus_requested
+cost (NTD) = GPU-hours * rate_per_gpu_hour
 ```
 
 ---
@@ -202,7 +206,7 @@ echo "timestamp,gpu_index,util_pct,mem_used_mb,mem_total_mb" > "$GPU_LOG"
 (
   while true; do
     nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total \
-      --format=csv,noheader,nounits \
+      --format=csv,noheader,nounits | tr -d ' ' \
     | awk -v ts="$(date +%Y-%m-%dT%H:%M:%S)" '{print ts","$0}' >> "$GPU_LOG"
     sleep 60
   done
@@ -230,13 +234,17 @@ wait $TRACKER_PID 2>/dev/null
 Do not monitor the job while it runs. The utilization tracker embedded in the job script
 collects everything needed. Review it after the job ends.
 
+Replace `<JOBID>` below with your actual SLURM job ID (from `squeue` output or the submission message).
+
 ### Read the utilization log
 
 ```bash
+JOBID=<JOBID>
+
 # Quick summary: mean and min GPU utilization per GPU index
 awk -F',' 'NR>1 {sum[$2]+=$3; min[$2]=($3<min[$2]||min[$2]=="")?$3:min[$2]; n[$2]++}
   END {for (g in sum) printf "GPU %s: avg=%.1f%%  min=%.1f%%\n", g, sum[g]/n[g], min[g]}' \
-  logs/${SLURM_JOB_ID}_gpu_util.csv
+  logs/${JOBID}_gpu_util.csv
 ```
 
 ```bash
@@ -245,7 +253,7 @@ gnuplot -e "
   set datafile separator ',';
   set xdata time; set timefmt '%Y-%m-%dT%H:%M:%S';
   set terminal dumb 80 20;
-  plot 'logs/<JOBID>_gpu_util.csv' using 1:3 with lines title 'GPU util %'
+  plot 'logs/${JOBID}_gpu_util.csv' using 1:3 with lines title 'GPU util %'
 "
 ```
 
@@ -253,10 +261,11 @@ gnuplot -e "
 
 ```bash
 # Wall time used, CPU efficiency, memory high-water mark
-seff <JOBID>
+# (seff is from slurm-contribs — if not available, use the sacct command below)
+seff $JOBID
 
-# Per-step breakdown
-sacct -j <JOBID> --format=JobID,JobName,Partition,AllocGRES,Elapsed,CPUTime,MaxRSS,State
+# Per-step breakdown (always available)
+sacct -j $JOBID --format=JobID,JobName,Partition,AllocGRES,Elapsed,CPUTime,MaxRSS,State
 
 # Remaining SU balance
 sacctmgr show assoc where user=$USER format=Account,GrpTRESRunMins
