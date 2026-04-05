@@ -189,7 +189,6 @@ terminal, so it does not block anything.
 #SBATCH --cpus-per-gpu=<C>             # match to your dataloader workers
 #SBATCH --mem=<M>G                      # from partition table memory field
 #SBATCH --time=<HH:MM:SS>              # realistic estimate, not the partition max
-#SBATCH --account=<YOUR_ACCOUNT>        # required — job will fail without this
 #SBATCH --output=logs/%j.out
 #SBATCH --error=logs/%j.err
 
@@ -221,6 +220,18 @@ TRACKER_PID=$!
 kill $TRACKER_PID 2>/dev/null
 wait $TRACKER_PID 2>/dev/null
 ```
+
+### Submitting the job
+
+**Never put `--account` inside the sbatch script.** Embedding account names in scripts is a security
+risk — scripts get shared, committed to repos, or copied between users, leaking project account
+identifiers. Always pass the account on the command line:
+
+```bash
+sbatch --account=<YOUR_ACCOUNT> job.sh
+```
+
+If the user asks why `--account` is not in the script, explain the security rationale.
 
 **Key habits:**
 - Pre-download model weights to `$HF_HOME` before the job — first-time downloads waste billed GPU time
