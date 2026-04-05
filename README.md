@@ -20,7 +20,7 @@ Claude Code skills plugin for working with TWCC / NCHC (National Center for High
 ### Local development / testing
 
 ```bash
-claude --plugin-dir /path/to/NCHC-cluster-skills
+claude --plugin-dir /path/to/nchc-cluster-skills
 ```
 
 ### Reload after changes
