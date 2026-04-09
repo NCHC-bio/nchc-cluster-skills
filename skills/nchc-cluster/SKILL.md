@@ -83,17 +83,58 @@ replacing any previous entry:
 Include the query date so staleness can be assessed in future sessions.
 Do not accumulate multiple table versions — replace the old entry.
 
-### Check job-level limits and fair-share (live, not cached)
+### Cluster Rules & Constraints (Memory-Cached)
 
-These change frequently and should always be queried fresh:
+Like the partition table, QoS and account constraints are stable for weeks. Cache them in memory
+alongside the partition table so that slurm-debug can cross-reference without re-querying.
+
+**Decision logic:** Same as partition table — use cached version unless stale signals present.
+
+**Live query commands (when cache missing or stale):**
 
 ```bash
-# Account limits and remaining SU budget
-sacctmgr show assoc where user=$USER \
-  format=Account,Cluster,Partition,GrpTRESRunMins,GrpTRES,MaxTRESRunMins -p
+# QoS limits: max GPUs per user, max jobs, max wall time
+sacctmgr show qos format=Name,Priority,MaxTRESPerUser,MaxTRESPerJob,MaxWall,MaxJobsPerUser -P
 
-# QoS limits (priority, max jobs, max wall per QoS)
-sacctmgr show qos format=Name,Priority,MaxTRESPerJob,MaxWall,MaxJobsPerUser
+# Account association limits
+sacctmgr show assoc where user=$USER \
+  format=Account,Cluster,Partition,GrpTRES,MaxTRES,MaxJobs,GrpTRESRunMins -P
+```
+
+**Save to memory** as a companion entry to the partition table:
+
+> **TWCC/NCHC cluster rules** (queried YYYY-MM-DD)
+>
+> **QoS limits:**
+> | QoS | MaxGPU/User | MaxJobs/User | MaxWall | Notes |
+> |-----|-------------|--------------|---------|-------|
+> | normal | 16 | 4 | 1:00:00 | dev partition default |
+> | ...  |   |   |   |   |
+>
+> **Partition constraints:**
+> | Partition | MinGPU | MaxGPU | MinNodes | MaxNodes | MaxWall | Notes |
+> |-----------|--------|--------|----------|----------|---------|-------|
+> | dev | 8 | 16 | 1 | 2 | 1:00:00 | |
+> | ...  |   |   |   |   |   |   |
+>
+> **Known bad nodes:** (maintain as failures are observed)
+> | Node | Issue | Date Added | Expiry |
+> |------|-------|------------|--------|
+> | 25a-hgpn050 | /tmp 950G+ garbage, causes deadlocks | 2026-04-10 | 2026-04-17 |
+> | 25a-hgpn107 | /work filesystem mount issue | 2026-04-08 | 2026-04-15 |
+>
+> Entries older than 7 days should be **re-verified** before continuing to exclude —
+> the issue may have been resolved. Remove stale entries after verification.
+
+These cached rules are used by slurm-debug skill to diagnose PENDING jobs and resource mismatches.
+When adding a bad node, always include the date. When the expiry passes, verify the node
+is still problematic before keeping it on the list.
+
+### Live status checks (always query fresh, never cache)
+
+```bash
+# Remaining SU budget
+sacctmgr show assoc where user=$USER format=Account,GrpTRESRunMins -P
 
 # Current queue
 squeue -u $USER -o "%.18i %.9P %.30j %.8u %.8T %.10M %.10l %.6D %R"
@@ -237,6 +278,8 @@ If the user asks why `--account` is not in the script, explain the security rati
 - Pre-download model weights to `$HF_HOME` before the job — first-time downloads waste billed GPU time
 - Cache intermediate results to avoid recomputing across experiment configurations
 - Adjust the tracker interval (`sleep 60`) based on job length: 60s for hour-long jobs, 300s for overnight runs
+
+**If a job fails or hangs**, use the **slurm-debug** skill.
 
 ---
 
