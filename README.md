@@ -6,7 +6,8 @@ Claude Code skills plugin for working with TWCC / NCHC (National Center for High
 
 | Skill | Triggers on |
 |-------|-------------|
-| `nchc-cluster` | SLURM, sbatch, sinfo, GPU jobs, SU billing, TWCC, NCHC, DDP, multi-GPU, partitions, H200, GB200 |
+| `cluster-info` | sinfo, scontrol, partition specs, QoS limits, MinGPU, SU billing, pricing, ARM vs x86, cluster identification |
+| `slurm-submission` | sbatch, job submission, GPU allocation, DDP, multi-GPU, wall time, job template, post-job review |
 | `slurm-debug` | Job hang, timeout, CUDA error, OOM, segfault, NCCL timeout, exit code, node drain, GPU utilization 0%, deadlock, job cancelled, slow training |
 
 ## Installation
@@ -34,16 +35,23 @@ claude --plugin-dir /path/to/nchc-cluster-skills
 
 ## Skills
 
-### nchc-cluster
+### cluster-info
 
-Guides Claude through NCHC cluster usage with:
+Shared data layer for cluster specs, used by both slurm-submission and slurm-debug:
 
-- **Partition info caching** -- queries `sinfo`/`scontrol` once, stores in memory, refreshes when stale
+- **Cluster identification** -- determines current cluster before doing anything
+- **Partition info caching** -- queries `sinfo`/`scontrol`/`sacctmgr` once, stores in memory, refreshes when stale
+- **QoS limits** -- MinGPU, MaxGPU per user/job, MaxJobs — mapped from partition → QoS
 - **Live pricing** -- fetches current GPU-hour rates from TWCC docs instead of hardcoding
+- **Architecture awareness** -- ARM (GB200) vs x86 (H100/H200) compatibility notes
+
+### slurm-submission
+
+Guides Claude through job submission (depends on cluster-info for cached specs):
+
 - **GPU allocation philosophy** -- request only what your code actually uses; anti-patterns that risk access revocation
 - **SLURM job template** -- with built-in GPU utilization tracker
 - **Post-job review** -- `seff`, utilization log analysis, actionable next-step table
-- **Architecture awareness** -- ARM (GB200) vs x86 (H100/H200) compatibility notes
 
 ### slurm-debug
 

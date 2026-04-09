@@ -5,14 +5,14 @@ description: >
   clusters. Trigger on: job hang, timeout, CUDA error, OOM, segfault, NCCL timeout, srun error,
   exit code, node drain, GPU utilization 0%, deadlock, job cancelled, ImportError in container,
   slow training, or any "my job isn't working" question.
-  Do NOT trigger for: job submission, resource planning, pricing, or partition queries (use nchc-cluster).
+  Do NOT trigger for: job submission (use slurm-submission), or partition/pricing queries (use cluster-info).
 ---
 
 # SLURM Job Debug Flow
 
 **Core principle:** When a job fails or hangs, **do not guess**. Route by `sacct` State + ExitCode first, then follow the matching branch.
 
-**REQUIRED:** Use nchc-cluster skill for partition specs, QoS limits, and known bad nodes data.
+**REQUIRED:** Use cluster-info skill for partition specs, QoS limits, and known bad nodes data.
 
 ---
 
@@ -54,7 +54,7 @@ Read `.err` log for the last traceback. Check in order:
 
 1. **Code interface changed?** — check `git log` since last working run
 2. **Path missing inside container?** — verify `--bind` / `--mount` covers all needed paths
-3. **Architecture mismatch?** — ARM vs x86 (check node arch from nchc-cluster cached partition table)
+3. **Architecture mismatch?** — ARM vs x86 (check node arch from cluster-info cached partition table)
 4. **Python/library version mismatch?** — container image may differ from dev environment
 
 ---
@@ -108,7 +108,7 @@ Check `voluntary_ctxt_switches` in `/proc/<PID>/status` twice, 30 seconds apart.
 - Track which nodes fail across recent jobs — look for patterns in `sacct` NodeList
 - `drained`/`down` in `sinfo` = known issue, already excluded by scheduler
 - `mixed`/`idle` doesn't mean healthy — `/tmp` garbage, GPU errors can exist on SLURM-healthy nodes
-- Check **known bad nodes** data via nchc-cluster skill
+- Check **known bad nodes** data via cluster-info skill
 - When confirmed bad: add to `--exclude` and update known bad nodes record with date and symptom
 
 ---
@@ -116,7 +116,7 @@ Check `voluntary_ctxt_switches` in `/proc/<PID>/status` twice, 30 seconds apart.
 ## Job Stuck in PENDING
 
 Check the `(Reason)` from `squeue -j <JOBID>`, then cross-reference against QoS limits
-and partition constraints from nchc-cluster skill:
+and partition constraints from cluster-info skill:
 
 | Reason | Check |
 |--------|-------|
