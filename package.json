@@ -1,6 +1,6 @@
 {
   "name": "nchc-cluster-skills",
-  "version": "1.0.0",
-  "description": "Claude Code skills plugin for TWCC / NCHC HPC cluster usage (SLURM, GPU allocation, pricing, job templates)",
+  "version": "1.1.0",
+  "description": "Claude Code skills plugin for TWCC / NCHC HPC cluster usage (SLURM, debugging, GPU allocation, pricing, job templates)",
   "type": "module"
 }
