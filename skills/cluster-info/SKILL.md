@@ -20,18 +20,20 @@ pricing differ between cluster generations — so specs are cached in memory and
 partitions, GPUs, QoS limits, and node names. Guessing wrong leads to failed jobs or wrong advice,
 especially when users transfer data between clusters.
 
-**Always determine the cluster first:**
+**Valid cluster names:** `t3-c4`, `nano4`, `nano5`, `twcc`, etc. — these are well-known identifiers
+that the user or documentation would use.
 
-```bash
-# Check which cluster this SSH session connects to
-echo $SSH_CONNECTION | awk '{print $3}'
-```
+**How to determine the cluster:**
 
-Cross-reference the IP against known TWCC login node IPs. If the IP is not recognized or
-`SSH_CONNECTION` is empty, **ask the user** which cluster they are on.
+1. Check if memory already has a cluster name from a previous session
+2. If not, **ask the user directly**: "Which cluster are you on? (e.g. nano4, nano5, t3-c4)"
 
-**Never proceed to Step 2 without knowing the cluster.** The cached partition table is per-cluster —
-using the wrong cluster's cache is worse than having no cache.
+**Do NOT use these to guess the cluster name:**
+- `hostname` — returns login node names like `25a-lgn03` which are NOT cluster names
+- `scontrol show config | grep ClusterName` — returns generic `hpc` on all clusters
+
+**Never proceed to Step 2 without a confirmed cluster name.** The cached partition table is
+per-cluster — using the wrong cluster's cache is worse than having no cache.
 
 ---
 
@@ -107,7 +109,11 @@ Key fields to extract per partition:
 | Architecture | features col from sinfo | `aarch64` = ARM, else x86_64 |
 | Preempt mode | scontrol | e.g. REQUEUE |
 
-### Saving to memory after a live query
+### Saving to memory after a live query — MANDATORY
+
+**You MUST save the query results to memory immediately after querying.** This is not optional.
+The entire caching system depends on it — if you skip this step, every future session will
+re-query from scratch and other skills (slurm-submission, slurm-debug) will have no data.
 
 Save a **single consolidated table** that includes both hardware specs AND scheduling rules.
 Replace any previous entry — one memory file per cluster.
