@@ -93,8 +93,8 @@ alongside the partition table so that slurm-debug can cross-reference without re
 **Live query commands (when cache missing or stale):**
 
 ```bash
-# QoS limits: max GPUs per user, max jobs, max wall time
-sacctmgr show qos format=Name,Priority,MaxTRESPerUser,MaxTRESPerJob,MaxWall,MaxJobsPerUser -P
+# QoS limits: min/max GPUs, max jobs, max wall time
+sacctmgr show qos format=Name,Priority,MinTRESPerJob,MaxTRESPerUser,MaxTRESPerJob,MaxWall,MaxJobsPerUser -P
 
 # Account association limits
 sacctmgr show assoc where user=$USER \
@@ -106,9 +106,9 @@ sacctmgr show assoc where user=$USER \
 > **TWCC/NCHC cluster rules** (queried YYYY-MM-DD)
 >
 > **QoS limits:**
-> | QoS | MaxGPU/User | MaxJobs/User | MaxWall | Notes |
-> |-----|-------------|--------------|---------|-------|
-> | normal | 16 | 4 | 1:00:00 | dev partition default |
+> | QoS | MinGPU/Job | MaxGPU/User | MaxJobs/User | MaxWall | Notes |
+> |-----|------------|-------------|--------------|---------|-------|
+> | normal | 8 | 16 | 4 | 1:00:00 | dev partition default |
 > | ...  |   |   |   |   |
 >
 > **Partition constraints:**

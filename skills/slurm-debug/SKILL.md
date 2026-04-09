@@ -120,12 +120,13 @@ and partition constraints from nchc-cluster skill:
 
 | Reason | Check |
 |--------|-------|
-| `QOSMaxGRESPerUser` | Total GPUs across running jobs exceeds QoS limit |
+| `QOSMinGRESNotSatisfied` | Requested GPUs below QoS MinGPU/Job — check cached QoS limits |
+| `QOSMaxGRESPerUser` | Total GPUs across running jobs exceeds QoS MaxGPU/User limit |
 | `QOSMaxJobsPerUserLimit` | Too many concurrent jobs |
 | `Resources` | Request doesn't fit partition (GPUs, nodes, wall time) |
 
 **Common mistakes:**
-- Fewer GPUs than partition minimum
+- Fewer GPUs than QoS minimum (e.g. requesting 1 GPU when MinGPU/Job is 8)
 - `--time` exceeds partition `MaxWall`
 - `--nodes` exceeds partition `MaxNodes`
 
