@@ -9,6 +9,13 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
+      - name: Check PAT exists
+        run: |
+          if [ -z "${{ secrets.MARKETPLACE_PAT }}" ]; then
+            echo "::error::MARKETPLACE_PAT secret is not set. Add a PAT with repo scope to Settings → Secrets → Actions."
+            exit 1
+          fi
+
       - name: Checkout skills repo
         uses: actions/checkout@v4
 
@@ -38,17 +45,33 @@ jobs:
       - name: Create PR
         run: |
           cd marketplace
-          BRANCH="auto/sync-v${{ steps.meta.outputs.version }}"
+          VERSION="${{ steps.meta.outputs.version }}"
+          BRANCH="auto/sync-v${VERSION}"
           git checkout -b "$BRANCH"
           git add .claude-plugin/marketplace.json
+
+          # Skip if neither version nor description changed
+          if git diff --cached --quiet; then
+            echo "marketplace.json already up to date (version and description match), skipping."
+            exit 0
+          fi
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: sync plugin version to v${{ steps.meta.outputs.version }}"
+          git commit -m "chore: sync plugin version to v${VERSION}"
           git push origin "$BRANCH"
+
+          TAG="${{ github.event.release.tag_name }}"
+          if [ -n "$TAG" ]; then
+            BODY="Automated sync from [nchc-cluster-skills ${TAG}](https://github.com/whats2000/nchc-cluster-skills/releases/tag/${TAG})."
+          else
+            BODY="Automated sync from nchc-cluster-skills v${VERSION} (manual trigger)."
+          fi
+
           gh pr create \
             --repo whats2000/nchc-marketplace \
-            --title "chore: sync plugin version to v${{ steps.meta.outputs.version }}" \
-            --body "Automated sync from [nchc-cluster-skills release](https://github.com/whats2000/nchc-cluster-skills/releases/tag/${{ github.event.release.tag_name }})." \
+            --title "chore: sync plugin version to v${VERSION}" \
+            --body "$BODY" \
             --head "$BRANCH"
         env:
           GH_TOKEN: ${{ secrets.MARKETPLACE_PAT }}
