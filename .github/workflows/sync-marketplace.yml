@@ -1,0 +1,54 @@
+name: Sync version to marketplace
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout skills repo
+        uses: actions/checkout@v4
+
+      - name: Read version and description
+        id: meta
+        run: |
+          VERSION=$(jq -r '.version' .claude-plugin/plugin.json)
+          DESCRIPTION=$(jq -r '.description' .claude-plugin/plugin.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "description=$DESCRIPTION" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout marketplace repo
+        uses: actions/checkout@v4
+        with:
+          repository: whats2000/nchc-marketplace
+          token: ${{ secrets.MARKETPLACE_PAT }}
+          path: marketplace
+
+      - name: Update marketplace.json
+        run: |
+          cd marketplace
+          jq --arg ver "${{ steps.meta.outputs.version }}" \
+             --arg desc "${{ steps.meta.outputs.description }}" \
+             '.plugins[0].version = $ver | .plugins[0].description = $desc' \
+             .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
+
+      - name: Create PR
+        run: |
+          cd marketplace
+          BRANCH="auto/sync-v${{ steps.meta.outputs.version }}"
+          git checkout -b "$BRANCH"
+          git add .claude-plugin/marketplace.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: sync plugin version to v${{ steps.meta.outputs.version }}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --repo whats2000/nchc-marketplace \
+            --title "chore: sync plugin version to v${{ steps.meta.outputs.version }}" \
+            --body "Automated sync from [nchc-cluster-skills release](https://github.com/whats2000/nchc-cluster-skills/releases/tag/${{ github.event.release.tag_name }})." \
+            --head "$BRANCH"
+        env:
+          GH_TOKEN: ${{ secrets.MARKETPLACE_PAT }}
