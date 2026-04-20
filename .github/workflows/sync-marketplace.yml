@@ -3,6 +3,10 @@ name: Sync version to marketplace
 on:
   release:
     types: [published]
+  push:
+    branches: [main]
+    paths:
+      - .claude-plugin/plugin.json
   workflow_dispatch:
 
 jobs:
@@ -62,8 +66,11 @@ jobs:
           git push origin "$BRANCH"
 
           TAG="${{ github.event.release.tag_name }}"
+          SHA="${{ github.sha }}"
           if [ -n "$TAG" ]; then
             BODY="Automated sync from [nchc-cluster-skills ${TAG}](https://github.com/whats2000/nchc-cluster-skills/releases/tag/${TAG})."
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            BODY="Automated sync from nchc-cluster-skills v${VERSION} (plugin.json push on main, [${SHA:0:7}](https://github.com/whats2000/nchc-cluster-skills/commit/${SHA}))."
           else
             BODY="Automated sync from nchc-cluster-skills v${VERSION} (manual trigger)."
           fi
