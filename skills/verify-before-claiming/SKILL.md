@@ -39,6 +39,46 @@ A claim counts as verified only if **all three** hold: the condition was **trigg
 
 ---
 
+## Entry-Point Discipline for Bug Claims
+
+"Real-path execution" has a subtle failure mode: you run real code, capture real output, compare real variants — but **one level below the entry point the user actually invokes**. The CLI / public API wraps, validates, or mutates arguments before calling the function you tested. The function-level test differs between HEAD and patch; the user-level command does not. You "verified" a non-bug.
+
+**Acid test for every bug claim:**
+
+> A bug claim is verified only if invoking the **user-facing entry point** produces observably different output between HEAD and HEAD+patch. If the entry-point output is identical, the claim is not a bug — it is guarded elsewhere in the wrapping code path, has no user-visible effect, or was never a bug.
+
+### Locating the entry point
+
+Before writing `switch_*.py`, answer two questions:
+
+1. **How does the user trigger this?** A CLI invocation (`lerobot-rollout --foo=bar`)? A test command (`uv run pytest tests/...`)? A public import (`from pkg.X import Y; Y(...)`)?
+2. **What is the shortest command that, if broken, reproduces the user's pain?**
+
+That command is the entry point. Anything narrower is a sub-component test — useful for localizing the fault, **not** for confirming the bug exists.
+
+### Diagnostic checklist — before claiming "X is a bug"
+
+```
+[ ] I can state the exact user command that triggers X.
+[ ] I have run that command on HEAD and captured the failing output.
+[ ] I have run that command with my proposed patch and captured the passing output.
+[ ] The two outputs differ in a way the user would notice.
+```
+
+If any box is empty, you have a surface observation, not a verified bug. Report it as such or run the missing step.
+
+### Common sub-entry-point traps
+
+Add these to your mental list of things that look like verification but aren't:
+
+- **Invoking the library function the CLI calls.** The CLI may validate / wrap / resolve arguments before calling it. Example: testing `LeRobotDataset.resume(repo_id, root)` directly does not exercise `lerobot-rollout --resume --dataset.repo_id=...`, because `DatasetRecordConfig.__post_init__` mutates `repo_id` before resume ever runs — and `resume` keys on `root`, not `repo_id`.
+- **Reproducing the failing primitive in isolation** (`nn.Module.to(None)`, `dict[None]`, divide-by-zero). The real caller may have already resolved the primitive's input — the "bug" never reaches it. Example: `PreTrainedPolicy.from_pretrained` already moves the policy to the resolved device, so a later `policy.to(None)` is a no-op, not a silent CPU fallback.
+- **Invoking `__exit__` / `__init__` / `setup` directly**, outside the public API that would have called it. The public API may guard, wrap, or skip the call entirely.
+
+In each case the sub-entry-point test runs real code and emits real output — and is still wrong, because the wrapping path the user hits never reaches the condition.
+
+---
+
 ## The Verification Artifact
 
 When you can run it, produce a **persistent artifact set**. Ephemeral runs (`python -c`, bash heredocs, one-off tool calls) do **not** count — they leave no audit trail, no re-runnable log, no drift detection.
@@ -339,6 +379,7 @@ One parser file can serve every subject whose runner emits the same log format. 
 | **Audit trail before execution** | Print the diff/substitution before any real work runs. |
 | **Output isolation** | Each variant's output lands in its own log. No shared mutable state between variants. |
 | **Real-path execution** | Run through the same path the actual user/CI hits. Mocked internals, isolated fragments, and out-of-context stubs do not count. |
+| **Observable at entry point** | For a bug claim: HEAD and HEAD+patch must produce output that differs in a way the user would notice when running the actual entry-point command. Identical entry-point output = not the bug you claimed, even if a sub-component test diverges. |
 | **Mechanical extraction** | The parser emits physical values only (loss, grad norm, exit code, latency) via regex. No `PASS`/`FAIL`, no `expected`, no thresholds, no verdict. The agent reads the parser's table — never the raw stdout — to form the verdict. |
 | **Outcome-independent report** | Swap the numbers and no sentence in the report becomes wrong. If swapping makes it false, you encoded prediction, not observation. |
 
@@ -353,6 +394,9 @@ One parser file can serve every subject whose runner emits the same log format. 
 - "The tests would catch this" — without running the tests
 - "CI is green" — CI proves only what CI exercises
 - A subagent reading the source — same static analysis, same problem
+- **Invoking the library function the user-facing CLI calls.** The CLI may validate, wrap, or mutate arguments before reaching that function; the sub-call may never see the condition the entry point does.
+- **Reproducing the failing primitive in isolation** (`nn.Module.to(None)`, `dict[None]`, etc.). The real caller may have resolved the primitive's input upstream; the "bug" never reaches it.
+- **Invoking `__exit__` / `__init__` / `setup` directly**, outside the public API that would normally call it — the public API may guard or skip the call.
 
 ---
 
