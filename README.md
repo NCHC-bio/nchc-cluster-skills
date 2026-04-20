@@ -22,6 +22,15 @@ Open Claude Code by running `claude` in your terminal, then run the following co
 /plugin install nchc-cluster-skills@nchc-marketplace
 ```
 
+### Updating
+
+To pull the latest version after a release:
+
+```bash
+/plugin marketplace update nchc-marketplace
+/plugin update nchc-cluster-skills@nchc-marketplace
+```
+
 ### Local development / testing
 
 ```bash
