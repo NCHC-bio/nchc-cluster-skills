@@ -9,6 +9,7 @@ Claude Code skills plugin for working with TWCC / NCHC (National Center for High
 | `cluster-info` | sinfo, scontrol, partition specs, QoS limits, MinGPU, SU billing, pricing, ARM vs x86, cluster identification |
 | `slurm-submission` | sbatch, job submission, GPU allocation, DDP, multi-GPU, wall time, job template, post-job review |
 | `slurm-debug` | Job hang, timeout, CUDA error, OOM, segfault, NCCL timeout, exit code, node drain, GPU utilization 0%, deadlock, job cancelled, slow training |
+| `verify-before-claiming` | User explicitly asks to verify, reproduce, benchmark, or compare behavior by running code ("can you verify this?", "run it and check", "prove it") |
 
 ## Installation
 
@@ -63,3 +64,13 @@ Guides Claude through a structured debug flow when SLURM jobs fail or hang:
 - **Bad node detection** -- tracks failing nodes across jobs, manages `--exclude` lists
 - **PENDING diagnosis** -- maps `squeue` reasons to QoS limits and partition constraints
 - **Resubmit checklist** -- prevents blind retries by verifying root cause, cleanup, and checkpointing
+
+### verify-before-claiming
+
+Opt-in skill for when the user explicitly asks Claude to prove a behavioral claim by running code:
+
+- **Persistent artifact set** -- `switch_*.py` + `run_*.sh` + `parse_*.py` + per-variant logs under `.verify_<slug>/`
+- **Verbatim substitution + drift detection** -- fails loudly if the HEAD block has moved instead of silently patching the wrong region
+- **Baseline as a variant** -- HEAD no-op always included; trap restores HEAD on any exit
+- **Real-path execution** -- runs the same entry point a user or CI would hit; defers cluster submission to `slurm-submission`
+- **Neutral parser** -- emits physical values (loss, exit_code, latency_ms) with no PASS/FAIL labels
