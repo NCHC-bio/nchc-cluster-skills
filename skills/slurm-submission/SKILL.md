@@ -3,15 +3,26 @@ name: slurm-submission
 description: >
   Use when submitting SLURM jobs, writing sbatch scripts, choosing GPU count, or reviewing
   completed jobs on TWCC/NCHC clusters. Trigger on: sbatch, job submission, GPU allocation,
-  DDP, multi-GPU, wall time, job template, seff, post-job review.
+  DDP, multi-GPU, wall time, job template, seff, post-job review, HuggingFace token in batch
+  job, wandb login in batch, HF 401 in job, non-interactive auth.
   Do NOT trigger for: partition queries or pricing (use cluster-info),
   or job failures/hangs (use slurm-debug).
+  If the target partition has aarch64/ARM compute nodes (currently any gb200-*, and
+  any future ARM partition), ALSO load arm64-pipeline for aarch64-specific setup.
 ---
 
 # SLURM Job Submission Guide
 
 **REQUIRED:** Use cluster-info skill first to ensure partition specs and QoS limits are cached
 in memory. If no cached cluster info exists, invoke cluster-info before proceeding.
+
+**If the user is targeting an ARM / aarch64 compute partition** — currently
+any `gb200-*` (Grace CPU), and any future ARM partition the cluster adds:
+the compute nodes are `aarch64` while the login node is `x86_64`, which
+breaks most pre-installed environments. **Also load the `arm64-pipeline` skill**
+for the aarch64-specific setup (uv, PyTorch CUDA wheel, torchcodec + FFmpeg).
+Check `uname -m` on an interactive session of the target partition if you're
+unsure whether it's ARM.
 
 ---
 
@@ -124,6 +135,47 @@ If the user asks why `--account` is not in the script, explain the security rati
 - Adjust the tracker interval (`sleep 60`) based on job length: 60s for hour-long jobs, 300s for overnight runs
 
 **If a job fails or hangs**, use the **slurm-debug** skill.
+
+---
+
+## Non-interactive auth in batch jobs
+
+Batch jobs have no TTY, so any interactive login flow (`hf auth login`,
+`wandb login`, `gh auth login`, `gcloud auth login`, docker registry login, …)
+**cannot run inside the job**. Agents cannot run these either — they
+require a human to paste a token or complete a browser OAuth step.
+
+**Agent workflow:**
+
+1. **Before writing the sbatch script**, verify the credential file exists —
+   do NOT read, print, or echo its contents (treat the file as a secret):
+   ```bash
+   test -s ~/.cache/huggingface/token && echo "HF token present" || echo "HF token missing"
+   ```
+   Use `test -s` (non-empty), `ls -l`, or `stat`. Never `cat`, `head`, `tr`
+   the contents into output the user or logs will see.
+2. **If the file is missing**, stop and ask the user to run the login command
+   on the login node first, and only then re-run your task. Give them the
+   exact command — e.g. for HuggingFace: `hf auth login`.
+3. **Inside the sbatch script**, read the credential file and `export` the
+   token as the env var the client library looks for. Verify with the tool's
+   `whoami`-style command **before** loading your ML framework or allocating
+   GPU memory — failing fast beats failing 10 minutes into training.
+4. **Strip whitespace** when reading the credential file — a trailing `\n`
+   silently makes most services return 401.
+
+Example sbatch block (HuggingFace; same shape for W&B, GitHub CLI, gcloud,
+docker, etc.):
+
+```bash
+export HF_TOKEN="$(tr -d '[:space:]' < ~/.cache/huggingface/token)"
+export HUGGING_FACE_HUB_TOKEN="$HF_TOKEN"   # different clients read different vars
+hf auth whoami                              # fail-fast check before GPU work
+```
+
+**Don't put tokens in `.bashrc`** — they leak into every shell and are easy
+to accidentally commit. Read from the credential file the official CLI
+already manages for you.
 
 ---
 
