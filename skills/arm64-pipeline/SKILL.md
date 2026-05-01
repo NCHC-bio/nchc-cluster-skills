@@ -115,31 +115,61 @@ Cached under `~/.local/share/uv/python/cpython-3.12-linux-aarch64-gnu/`.
 
 ## 3. PyTorch on aarch64: default wheel is CPU-only
 
-The aarch64 torch wheel on PyPI is **CPU-only**. `torch.cuda.is_available()`
-returns `False` on the ARM compute node even though the GPUs (e.g. H100-class
-on GB200) are there.
+The aarch64 torch wheel on PyPI is CPU-only. `torch.cuda.is_available()`
+returns `False` on ARM compute even with GPUs present.
 
-### Fix: declare the PyTorch CUDA index explicitly in `pyproject.toml`
+**Index name follows the node's CUDA driver.** Run `nvidia-smi` on the
+compute node and use `cu<major><minor>`. GB200 currently ships CUDA 13.0 →
+`cu130`. Do not hardcode `cu128`.
+
+### Fix A — solo project (you own `uv.lock`)
 
 ```toml
 [[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
 [tool.uv.sources]
-torch       = [{ index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" }]
-torchvision = [{ index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" }]
+torch       = [{ index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" }]
+torchvision = [{ index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" }]
 ```
 
-**Re-lock from an aarch64 compute node**, not the x86 login node — resolution
-picks up the CUDA index only when the target platform is aarch64. Expect
-`torch==2.11.0+cu128`, `torchvision==0.26.0+cu128` (versions current as of
-writing; check the index for newer).
+Then **on an aarch64 compute node**:
 
-You may also need to widen `[project]` version bounds — the PyPI x86 wheel
-and the `cu128` aarch64 wheel aren't always the same family (e.g. bump
-`torch>=2.7,<2.11` → `torch>=2.7,<2.13`).
+```bash
+"$UV" lock --upgrade-package torch --upgrade-package torchvision   # required if uv.lock exists
+"$UV" sync --python 3.12
+```
+
+Skipping the relock leaves the CPU wheel pinned and `uv sync` honours it.
+Widen `[project]` bounds if the cu1XX wheel jumps a major (e.g.
+`torch>=2.7,<2.13`).
+
+### Fix B — shared `uv.lock` (x86 collaborators)
+
+Don't mutate the lock. Override the installed wheel instead:
+
+```bash
+"$UV" sync --python 3.12
+"$UV" pip install --python "$VENV/bin/python" \
+    --torch-backend=auto --upgrade torch torchvision
+```
+
+Lock keeps `torch==X.Y` from PyPI; venv shows `X.Y+cu1XX`. By design.
+
+### 3a. uv subcommand gotchas
+
+- `uv sync --torch-backend=auto` — flag does **not** exist on `sync` (only
+  on `uv pip install` / `uv add`).
+- `UV_TORCH_BACKEND=auto uv sync` — ignored when `uv.lock` exists (sync is
+  lock-driven).
+- `uv pip install` ignores `UV_PROJECT_ENVIRONMENT` and defaults to
+  `./.venv`. **Always pass `--python <aarch64 venv>/bin/python`** or it
+  may install into a stale x86 venv → `Exec format error`.
+- `uv run` auto-syncs and silently undoes any Fix B override. Use
+  `uv run --no-sync` or call `"$VENV/bin/python"` directly when the
+  override matters (see §5).
 
 ---
 
@@ -190,18 +220,25 @@ The FFmpeg major version (`n7.1`) must match the ABI of one of
 
 ## 5. Arch-level pre-flight check
 
-Before loading torch on an ARM node, assert you're actually on aarch64 with
-CUDA wheels — failing fast here beats a confusing error 10 min into training:
+Verify directly via the venv's python — `uv run` auto-syncs and may
+reinstall the lock-pinned CPU wheel on top of a Fix B override:
 
 ```bash
 uname -m                                    # must print aarch64
-"$UV" run --python 3.12 -c \
+"$VENV/bin/python" -c \
   'import torch; print(torch.__version__, torch.cuda.is_available())'
-# expect: 2.11.0+cu128  True
+# expect: 2.X.Y+cu1XX  True
 ```
 
-If `torch.cuda.is_available()` is `False`, revisit §3 — you got the CPU-only
-aarch64 wheel.
+`False` → revisit §3 (CPU wheel installed, or `uv run`/`uv sync` clobbered
+the override).
+
+### Known harmless warnings
+
+- **unsloth → vLLM CUDA mismatch.** `import unsloth` on a CUDA-13 node
+  prints `vLLM was built for CUDA 12 but this system has CUDA 13.0`.
+  Benign unless your code actually calls `vllm.LLM` — vLLM is a
+  transitive import-time dep most QLoRA paths don't invoke.
 
 ---
 
@@ -225,16 +262,26 @@ uname -m                       # expect: aarch64
 Everything else in the sbatch script (partition flags, `--mem`, `--time`,
 TMPDIR, tokens, utilization tracker) comes from `slurm-submission`, not here.
 
+### If `sbatch` rejects: `Requested node configuration is not available`
+
+`--cpus-per-gpu × --gpus-per-node` exceeds post-reservation capacity.
+Re-invoke `cluster-info` for current per-node spec — do not trust cached
+values (in `~/.claude/cluster_info.md` or earlier in this session); per-node
+reservation overhead changes on cluster reconfig. Resubmit with reduced
+`--cpus-per-gpu`.
+
 ---
 
-## Known-good versions (as of 2026-04-17)
+## Known-good versions (as of 2026-05-01)
 
-| Component   | Version                |
-|-------------|------------------------|
-| uv          | 0.10.0 (aarch64)       |
-| CPython     | 3.12.12 (aarch64)      |
-| torch       | 2.11.0+cu128           |
-| torchvision | 0.26.0+cu128           |
-| torchcodec  | 0.11.x                 |
-| FFmpeg      | n7.1 (BtbN linuxarm64) |
-| CUDA        | 12.8                   |
+CUDA driver and torch wheel index are **dynamic** — detect on the node.
+
+| Component   | Version                                       |
+|-------------|-----------------------------------------------|
+| uv          | 0.10.0 (aarch64)                              |
+| CPython     | 3.12.12 (aarch64)                             |
+| torch       | `X.Y+cu<NN>` from `nvidia-smi` major.minor    |
+| torchvision | matched to torch from same index              |
+| torchcodec  | 0.11.x                                        |
+| FFmpeg      | n7.1 (BtbN linuxarm64)                        |
+| CUDA driver | `nvidia-smi`; GB200 today: 13.0 → `cu130`     |
