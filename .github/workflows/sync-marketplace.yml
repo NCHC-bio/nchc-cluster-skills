@@ -34,7 +34,7 @@ jobs:
       - name: Checkout marketplace repo
         uses: actions/checkout@v4
         with:
-          repository: whats2000/nchc-marketplace
+          repository: NCHC-bio/nchc-marketplace
           token: ${{ secrets.MARKETPLACE_PAT }}
           path: marketplace
 
@@ -68,15 +68,15 @@ jobs:
           TAG="${{ github.event.release.tag_name }}"
           SHA="${{ github.sha }}"
           if [ -n "$TAG" ]; then
-            BODY="Automated sync from [nchc-cluster-skills ${TAG}](https://github.com/whats2000/nchc-cluster-skills/releases/tag/${TAG})."
+            BODY="Automated sync from [nchc-cluster-skills ${TAG}](https://github.com/NCHC-bio/nchc-cluster-skills/releases/tag/${TAG})."
           elif [ "${{ github.event_name }}" = "push" ]; then
-            BODY="Automated sync from nchc-cluster-skills v${VERSION} (plugin.json push on main, [${SHA:0:7}](https://github.com/whats2000/nchc-cluster-skills/commit/${SHA}))."
+            BODY="Automated sync from nchc-cluster-skills v${VERSION} (plugin.json push on main, [${SHA:0:7}](https://github.com/NCHC-bio/nchc-cluster-skills/commit/${SHA}))."
           else
             BODY="Automated sync from nchc-cluster-skills v${VERSION} (manual trigger)."
           fi
 
           gh pr create \
-            --repo whats2000/nchc-marketplace \
+            --repo NCHC-bio/nchc-marketplace \
             --title "chore: sync plugin version to v${VERSION}" \
             --body "$BODY" \
             --head "$BRANCH"

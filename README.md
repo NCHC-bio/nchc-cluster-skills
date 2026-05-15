@@ -18,7 +18,7 @@ Claude Code skills plugin for working with TWCC / NCHC (National Center for High
 Open Claude Code by running `claude` in your terminal, then run the following commands:
 
 ```bash
-/plugin marketplace add whats2000/nchc-marketplace
+/plugin marketplace add NCHC-bio/nchc-marketplace
 /plugin install nchc-cluster-skills@nchc-marketplace
 ```
 
